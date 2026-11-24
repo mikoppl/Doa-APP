@@ -12,7 +12,46 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
       - run: npm install
+      - run: npm install @capacitor/haptics@^6 @capacitor/assets@^3
+      - run: pip install pillow
+      - name: Buat logo dan splash
+        run: |
+          mkdir -p assets
+          python3 - <<'PY'
+          from PIL import Image, ImageDraw, ImageOps
+          import math
+          N = 2048
+          k = N / 100
+          L = Image.new('RGBA', (N, N), (0, 0, 0, 0))
+          d = ImageDraw.Draw(L)
+          for i in range(36):
+              a = 2 * math.pi * i / 36
+              x = (50 + 31 * math.cos(a)) * k
+              y = (50 + 31 * math.sin(a)) * k
+              r = 1.15 * k
+              d.ellipse((x - r, y - r, x + r, y + r), fill=(255, 255, 255, 105))
+          m = Image.new('L', (N, N), 0)
+          md = ImageDraw.Draw(m)
+          md.ellipse((32 * k, 36 * k, 65 * k, 69 * k), fill=255)
+          md.ellipse((42.3 * k, 33.8 * k, 70.7 * k, 62.2 * k), fill=0)
+          g = ImageOps.colorize(Image.linear_gradient('L').resize((N, N)), (241, 211, 126), (201, 162, 75)).convert('RGBA')
+          L.paste(g, (0, 0), m)
+          pts = [(59.5, 36.2), (60.8, 39.7), (64.3, 41), (60.8, 42.3), (59.5, 45.8), (58.2, 42.3), (54.7, 41), (58.2, 39.7)]
+          d.polygon([(x * k, y * k) for x, y in pts], fill=(241, 211, 126, 255))
+          v = Image.linear_gradient('L').resize((N, N))
+          h = Image.linear_gradient('L').rotate(90).resize((N, N))
+          B = ImageOps.colorize(Image.blend(v, h, .5), (11, 74, 63), (28, 138, 115)).convert('RGBA')
+          sz = lambda im, n: im.resize((n, n), Image.LANCZOS)
+          sz(L, 1024).save('assets/icon-foreground.png')
+          sz(B, 1024).save('assets/icon-background.png')
+          f = B.copy(); f.alpha_composite(L); sz(f, 1024).save('assets/icon-only.png')
+          s = B.copy(); t = L.resize((1126, 1126), Image.LANCZOS); s.alpha_composite(t, ((N - 1126) // 2, (N - 1126) // 2))
+          for n in ('splash', 'splash-dark'):
+              sz(s, 2732).convert('RGB').save('assets/' + n + '.png')
+          PY
+          ls -la assets
       - run: npx cap add android
+      - run: npx capacitor-assets generate --android
       - run: npx cap sync android
       - run: cd android && chmod +x gradlew && ./gradlew assembleDebug
       - uses: actions/upload-artifact@v4
